@@ -7,7 +7,7 @@ def versionDefined = rootProject.ext.versionName
 def gitUrl = "https://github.com/licheedev/Android-SerialPort-API"
 
 // 配置是否上传
-def toUpload = true
+def toUpload = false
 
 //在根build.gradle中加入，最新版本号参考 https://github.com/Kotlin/dokka#using-dokka
 //classpath 'org.jetbrains.dokka:dokka-gradle-plugin:1.4.32'
