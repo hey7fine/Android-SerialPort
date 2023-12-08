@@ -129,9 +129,8 @@ class SerialPort @JvmOverloads constructor(
          * @param dataBits 默认8,可选值为5~8
          * @return
          */
-        fun dataBits(dataBits: Int): Builder {
+        fun dataBits(dataBits: Int): Builder = apply {
             this.dataBits = dataBits
-            return this
         }
 
         /**
@@ -140,9 +139,8 @@ class SerialPort @JvmOverloads constructor(
          * @param parity 0:无校验位(NONE，默认)；1:奇校验位(ODD);2:偶校验位(EVEN)
          * @return
          */
-        fun parity(parity: Int): Builder {
+        fun parity(parity: Int): Builder = apply {
             this.parity = parity
-            return this
         }
 
         /**
@@ -151,9 +149,8 @@ class SerialPort @JvmOverloads constructor(
          * @param stopBits 默认1；1:1位停止位；2:2位停止位
          * @return
          */
-        fun stopBits(stopBits: Int): Builder {
+        fun stopBits(stopBits: Int): Builder = apply {
             this.stopBits = stopBits
-            return this
         }
 
         /**
@@ -162,9 +159,8 @@ class SerialPort @JvmOverloads constructor(
          * @param flags 默认0
          * @return
          */
-        fun flags(flags: Int): Builder {
+        fun flags(flags: Int): Builder = apply {
             this.flags = flags
-            return this
         }
 
         /**
