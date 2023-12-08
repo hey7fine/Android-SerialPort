@@ -1,5 +1,6 @@
 plugins {
     id 'com.android.library'
+    id 'org.jetbrains.kotlin.android'
 }
 
 
@@ -37,6 +38,7 @@ dependencies {
 
 
     api "androidx.annotation:annotation:1.1.0"
+    implementation 'androidx.core:core-ktx:1.7.0'
 }
 
 apply from: '../maven_publish.gradle'
