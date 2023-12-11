@@ -1,5 +1,6 @@
-package android.serialport.repacking
+package android.serialport.repacking.helpers
 
+import android.serialport.repacking.Repackable
 import java.io.IOException
 import java.io.InputStream
 import java.nio.ByteOrder
