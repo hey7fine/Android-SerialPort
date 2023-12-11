@@ -15,7 +15,6 @@
  */
 package android.serialport
 
-import android.util.Log
 import java.io.*
 
 /**
@@ -47,9 +46,9 @@ class SerialPort @JvmOverloads constructor(
     /*
        * Do not remove or rename the field mFd: it is used by native method close();
        */
-    private val mFd: FileDescriptor?
-    private val mFileInputStream: FileInputStream
-    private val mFileOutputStream: FileOutputStream
+    private lateinit var mFd: FileDescriptor
+    private lateinit var mFileInputStream: FileInputStream
+    private lateinit var mFileOutputStream: FileOutputStream
     val inputStream: InputStream
         // Getters and setters
         get() = mFileInputStream
@@ -64,8 +63,18 @@ class SerialPort @JvmOverloads constructor(
 
     external fun close()
 
+    /**
+     * 打开流和串口
+     */
+    fun connect() {
+        mFd = open(device.absolutePath, baudrate, dataBits, parity, stopBits, flags)
+            ?: throw IOException()
+        mFileInputStream = FileInputStream(mFd)
+        mFileOutputStream = FileOutputStream(mFd)
+    }
+
     /** 关闭流和串口，已经try-catch  */
-    fun tryClose() {
+    fun disconnect() {
         try {
             mFileInputStream.close()
         } catch (e: IOException) {
@@ -84,7 +93,6 @@ class SerialPort @JvmOverloads constructor(
     }
 
     init {
-
         /* Check access permission */if (!device.canRead() || !device.canWrite()) {
             try {
                 /* Missing read/write permission, trying to chmod the file */
@@ -100,16 +108,10 @@ class SerialPort @JvmOverloads constructor(
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
+                e.printStackTrace()
                 throw SecurityException()
             }
         }
-        mFd = open(device.absolutePath, baudrate, dataBits, parity, stopBits, flags)
-        if (mFd == null) {
-            Log.e(TAG, "native open returns null")
-            throw IOException()
-        }
-        mFileInputStream = FileInputStream(mFd)
-        mFileOutputStream = FileOutputStream(mFd)
     }
 
     class Builder(
