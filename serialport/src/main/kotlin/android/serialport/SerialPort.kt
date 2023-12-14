@@ -15,6 +15,10 @@
  */
 package android.serialport
 
+import android.serialport.repacking.helpers.CommonRepackingHelper
+import android.serialport.repacking.Repackable
+import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.MutableSharedFlow
 import java.io.*
 
 /**
@@ -26,10 +30,11 @@ import java.io.*
  * @param parity 奇偶校验；0:无校验位(NONE，默认)；1:奇校验位(ODD);2:偶校验位(EVEN)
  * @param stopBits 停止位；默认1；1:1位停止位；2:2位停止位
  * @param flags 默认0
+ * @param repackingHelper 粘包处理类
  * @throws SecurityException
  * @throws IOException
  */
-class SerialPort @JvmOverloads constructor(
+open class SerialPort @JvmOverloads constructor(
     /** 串口设备文件  */
     private val device: File,
     /** 波特率  */
@@ -40,7 +45,8 @@ class SerialPort @JvmOverloads constructor(
     private val parity: Int = 0,
     /** 停止位；默认1；1:1位停止位；2:2位停止位  */
     private val stopBits: Int = 1,
-    private val flags: Int = 0
+    private val flags: Int = 0,
+    private val repackingHelper: Repackable = CommonRepackingHelper()
 ) {
 
     /*
@@ -55,6 +61,12 @@ class SerialPort @JvmOverloads constructor(
     val outputStream: OutputStream
         get() = mFileOutputStream
 
+    /**
+     * 串口协程域
+     */
+    protected val lifecycleScope = CoroutineScope(Dispatchers.IO)
+    val flow = MutableSharedFlow<ByteArray>()
+
     // JNI
     private external fun open(
         absolutePath: String, baudrate: Int, dataBits: Int, parity: Int,
@@ -66,29 +78,45 @@ class SerialPort @JvmOverloads constructor(
     /**
      * 打开流和串口
      */
-    fun connect() {
+    open fun connect() {
         mFd = open(device.absolutePath, baudrate, dataBits, parity, stopBits, flags)
             ?: throw IOException()
         mFileInputStream = FileInputStream(mFd)
         mFileOutputStream = FileOutputStream(mFd)
+
+        lifecycleScope.launch {
+            while (isActive) {
+                try {
+                    repackingHelper.execute(inputStream)
+                        ?.takeIf { it.isNotEmpty() }
+                        ?.run {
+                            flow.emit(this)
+                        }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                    return@launch
+                }
+            }
+        }
     }
 
     /** 关闭流和串口，已经try-catch  */
-    fun disconnect() {
+    open fun disconnect() {
         try {
+            lifecycleScope.cancel()
             mFileInputStream.close()
-        } catch (e: IOException) {
-            //e.printStackTrace();
-        }
-        try {
             mFileOutputStream.close()
-        } catch (e: IOException) {
-            //e.printStackTrace();
-        }
-        try {
             close()
         } catch (e: Exception) {
             //e.printStackTrace();
+        }
+    }
+
+    fun send(data: ByteArray) {
+        try {
+            outputStream.write(data)
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
     }
 
@@ -122,6 +150,7 @@ class SerialPort @JvmOverloads constructor(
         private var parity = 0
         private var stopBits = 1
         private var flags = 0
+        private var repackingHelper: Repackable = CommonRepackingHelper()
 
         constructor(devicePath: String, baudrate: Int) : this(File(devicePath), baudrate)
 
@@ -166,6 +195,16 @@ class SerialPort @JvmOverloads constructor(
         }
 
         /**
+         * 粘包处理类
+         *
+         * @param helper 默认常规处理类
+         * @return
+         */
+        fun repacking(helper: Repackable): Builder = apply {
+            this.repackingHelper = helper
+        }
+
+        /**
          * 打开并返回串口
          *
          * @return
@@ -174,7 +213,7 @@ class SerialPort @JvmOverloads constructor(
          */
         @Throws(SecurityException::class, IOException::class)
         fun build(): SerialPort {
-            return SerialPort(device, baudrate, dataBits, parity, stopBits, flags)
+            return SerialPort(device, baudrate, dataBits, parity, stopBits, flags, repackingHelper)
         }
     }
 
