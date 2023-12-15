@@ -18,7 +18,8 @@ package android.serialport
 import android.serialport.repacking.helpers.CommonRepackingHelper
 import android.serialport.repacking.Repackable
 import kotlinx.coroutines.*
-import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.flow
 import java.io.*
 
 /**
@@ -50,8 +51,8 @@ open class SerialPort @JvmOverloads constructor(
 ) {
 
     /*
-       * Do not remove or rename the field mFd: it is used by native method close();
-       */
+     * Do not remove or rename the field mFd: it is used by native method close();
+     */
     private lateinit var mFd: FileDescriptor
     private lateinit var mFileInputStream: FileInputStream
     private lateinit var mFileOutputStream: FileOutputStream
@@ -64,8 +65,7 @@ open class SerialPort @JvmOverloads constructor(
     /**
      * 串口协程域
      */
-    protected val lifecycleScope = CoroutineScope(Dispatchers.IO)
-    val flow = MutableSharedFlow<ByteArray>()
+    protected val lifecycleScope = CoroutineScope(Dispatchers.IO + Job())
 
     // JNI
     private external fun open(
@@ -76,32 +76,34 @@ open class SerialPort @JvmOverloads constructor(
     external fun close()
 
     /**
+     * 连接成功
+     */
+    open fun onStart() {
+
+    }
+
+    /**
+     * 接收到数据
+     */
+    open fun onDataReceived(data:ByteArray) {
+
+    }
+
+    /**
      * 打开流和串口
      */
-    open fun connect() {
+    fun connect() {
         mFd = open(device.absolutePath, baudrate, dataBits, parity, stopBits, flags)
             ?: throw IOException()
         mFileInputStream = FileInputStream(mFd)
         mFileOutputStream = FileOutputStream(mFd)
 
-        lifecycleScope.launch {
-            while (isActive) {
-                try {
-                    repackingHelper.execute(inputStream)
-                        ?.takeIf { it.isNotEmpty() }
-                        ?.run {
-                            flow.emit(this)
-                        }
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                    return@launch
-                }
-            }
-        }
+        execute()
+        onStart()
     }
 
     /** 关闭流和串口，已经try-catch  */
-    open fun disconnect() {
+    fun disconnect() {
         try {
             lifecycleScope.cancel()
             mFileInputStream.close()
@@ -112,11 +114,31 @@ open class SerialPort @JvmOverloads constructor(
         }
     }
 
-    fun send(data: ByteArray) {
-        try {
-            outputStream.write(data)
-        } catch (e: Exception) {
-            e.printStackTrace()
+    private fun execute() {
+        lifecycleScope.launch {
+            flow {
+                while (isActive) {
+                    repackingHelper.execute(inputStream)
+                        ?.takeIf { it.isNotEmpty() }
+                        ?.run {
+                            emit(this)
+                        }
+                }
+            }.catch {
+                it.printStackTrace()
+            }.collect {
+                onDataReceived(it)
+            }
+        }
+    }
+
+    fun submit(data: ByteArray) {
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                outputStream.write(data)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
         }
     }
 
